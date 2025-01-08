@@ -3,6 +3,6 @@
 use rim::editor::Editor;
 
 fn main() {
-    let editor = Editor::new();
+    let editor = Editor::default();
     editor.run();
 }
