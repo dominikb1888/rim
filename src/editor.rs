@@ -1,6 +1,5 @@
 use crossterm::event::{read, Event, Event::Key, KeyCode::Char, KeyEvent, KeyModifiers};
 use crossterm::execute;
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, Clear, ClearType};
 use crossterm::cursor::MoveTo;
 use std::io::stdout;
 
@@ -54,7 +53,7 @@ impl Editor {
             Terminal::clear_screen()?;
             print!("Goodbye.\r\n");
         } else {
-            Self::draw_rows();
+            let _ = Self::draw_rows();
             execute!(stdout(), MoveTo(0, 0))?;
         }
         Ok(())
@@ -62,9 +61,11 @@ impl Editor {
 
     fn draw_rows() -> Result<(), std::io::Error> {
         let height = Terminal::size()?.1;
-        for line in 0..=height {
-            execute!(stdout(), MoveTo(0, line));
+        for current_row in 0..height {
             print!("~");
+            if current_row + 1 < height {
+                print!("\r\n");
+            }
         }
         Ok(())
     }
