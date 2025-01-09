@@ -1,7 +1,9 @@
+use crossterm::cursor::{MoveTo, MoveRight};
 use crossterm::event::{read, Event, Event::Key, KeyCode::Char, KeyEvent, KeyModifiers};
-use crossterm::execute;
-use crossterm::cursor::MoveTo;
-use std::io::stdout;
+use crossterm::queue;
+use crossterm::style::{Print, SetForegroundColor, SetBackgroundColor, ResetColor, Color, Attribute};
+
+use std::io::{Write, stdout};
 
 use crate::terminal::Terminal;
 
@@ -51,10 +53,12 @@ impl Editor {
     fn refresh_screen(&self) -> Result<(), std::io::Error> {
         if self.should_quit {
             Terminal::clear_screen()?;
-            print!("Goodbye.\r\n");
+            queue!(stdout(), Print("Goodbye.\r\n".to_string()));
+            stdout().flush();
         } else {
             let _ = Self::draw_rows();
-            execute!(stdout(), MoveTo(0, 0))?;
+            queue!(stdout(), MoveTo(0, 0))?;
+            stdout().flush();
         }
         Ok(())
     }
@@ -62,11 +66,12 @@ impl Editor {
     fn draw_rows() -> Result<(), std::io::Error> {
         let height = Terminal::size()?.1;
         for current_row in 0..height {
-            print!("~");
+            queue!(stdout(), Print("~".to_string()));
             if current_row + 1 < height {
-                print!("\r\n");
+                queue!(stdout(), Print("\r\n".to_string()));
             }
         }
+        stdout().flush();
         Ok(())
     }
 }
