@@ -1,21 +1,27 @@
+use std::io::{Write, stdout, Error};
+use std::cmp::min;
+
 use crossterm::cursor::{MoveTo, MoveRight};
-use crossterm::event::{read, Event, Event::Key, KeyCode::Char, KeyEvent, KeyModifiers};
+use crossterm::event::{read, Event, Event::Key, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use crossterm::queue;
 use crossterm::style::{Print, SetForegroundColor, SetBackgroundColor, ResetColor, Color, Attribute};
 
-use std::io::{Write, stdout};
+use crate::terminal::{Terminal, Size, Position};
+use crate::view::View;
 
-use crate::terminal::Terminal;
+#[derive(Copy, Clone, Default)]
+struct Location {
+    x: usize,
+    y: usize,
+}
 
+#[derive(Default)]
 pub struct Editor {
     should_quit: bool,
+    location: Location,
 }
 
 impl Editor {
-
-    pub const fn default() -> Self {
-        Self { should_quit: false }
-    }
 
     pub fn run(&mut self) {
         Terminal::initialize().unwrap();
@@ -24,54 +30,84 @@ impl Editor {
         result.unwrap();
     }
 
-    fn repl(&mut self) -> Result<(), std::io::Error> {
+    fn repl(&mut self) -> Result<(), Error> {
         loop {
             self.refresh_screen()?;
             if self.should_quit {
                 break;
             }
             let event = read()?;
-            self.evaluate_event(&event);
+            self.evaluate_event(&event)?;
         }
         Ok(())
     }
 
-    fn evaluate_event(&mut self, event: &Event) {
+    fn move_point(&mut self, key_code: KeyCode) -> Result<(), Error> {
+        let Location { mut x, mut y } = self.location;
+        let Size { height, width } = Terminal::size()?;
+        // saturating_sub moves the cursor into the specified direction unless being at the
+        // edge already: https://users.rust-lang.org/t/saturating-what-does-it-really-do-and-when-is-it-useful/52720/6
+        match key_code {
+            KeyCode::Up => y = y.saturating_sub(1),
+            KeyCode::Down =>  y = min(height.saturating_sub(1), y.saturating_add(1)),
+            KeyCode::Left => x = x.saturating_sub(1),
+            KeyCode::Right => x = min(width.saturating_sub(1), x.saturating_add(1)),
+            KeyCode::PageUp => y = 0,
+            KeyCode::PageDown => y = height.saturating_sub(1),
+            KeyCode::Home => x = 0,
+            KeyCode::End => x = width.saturating_sub(1),
+            _ => todo!()
+
+        }
+        self.location = Location { x, y };
+        Ok(())
+    }
+
+    fn evaluate_event(&mut self, event: &Event) -> Result<(), Error> {
         if let Key(KeyEvent {
-            code, modifiers, ..
+            code,
+            modifiers,
+            kind: KeyEventKind::Press,
+            ..
         }) = event
         {
             match code {
-                Char('q') if *modifiers == KeyModifiers::CONTROL => {
+                KeyCode::Char('q') if *modifiers == KeyModifiers::CONTROL => {
                     self.should_quit = true;
+                }
+                KeyCode::Up
+                | KeyCode::Down
+                | KeyCode::Left
+                | KeyCode::Right
+                | KeyCode::PageDown
+                | KeyCode::PageUp
+                | KeyCode::End
+                | KeyCode::Home => {
+                    self.move_point(*code)?;
                 }
                 _ => (),
             }
         }
-    }
-
-    fn refresh_screen(&self) -> Result<(), std::io::Error> {
-        if self.should_quit {
-            Terminal::clear_screen()?;
-            queue!(stdout(), Print("Goodbye.\r\n".to_string()));
-            stdout().flush();
-        } else {
-            let _ = Self::draw_rows();
-            queue!(stdout(), MoveTo(0, 0))?;
-            stdout().flush();
-        }
         Ok(())
     }
 
-    fn draw_rows() -> Result<(), std::io::Error> {
-        let height = Terminal::size()?.1;
-        for current_row in 0..height {
-            queue!(stdout(), Print("~".to_string()));
-            if current_row + 1 < height {
-                queue!(stdout(), Print("\r\n".to_string()));
-            }
+    fn refresh_screen(&self) -> Result<(), Error> {
+        Terminal::hide_caret()?;
+        Terminal::move_caret_to(Position::default())?;
+        // Two views here: Goodbye and Render
+        if self.should_quit {
+            Terminal::clear_screen()?;
+            Terminal::print("Goodbye.\r\n")?;
+            stdout().flush();
+        } else {
+            View::render();
+            Terminal::move_caret_to(Position {
+                col: self.location.x,
+                row: self.location.y,
+            })?;
         }
-        stdout().flush();
+        Terminal::show_caret()?;
+        Terminal::execute()?;
         Ok(())
     }
 }
