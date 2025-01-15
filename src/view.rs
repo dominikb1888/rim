@@ -1,16 +1,22 @@
 use std::io::Error;
 
 use crate::terminal::{Terminal, Size};
+use crate::buffer::Buffer;
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Debug, Default)]
-pub struct View {}
+pub struct View {
+    buffer: Buffer,
+}
 
 impl View {
+    pub fn render(buffer: Buffer) -> Result<(), Error> {
 
-    pub fn render() -> Result<(), Error> {
+    }
+
+    fn draw_welcome_view() -> Result<(), Error> {
         let Size { height, .. } = Terminal::size()?;
         for current_row in 0..height {
             Terminal::clear_line()?;
@@ -27,6 +33,7 @@ impl View {
             }
         }
         Ok(())
+
     }
 
     fn draw_welcome_message() -> Result<(), Error> {

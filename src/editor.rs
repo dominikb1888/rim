@@ -100,7 +100,7 @@ impl Editor {
             Terminal::print("Goodbye.\r\n")?;
             stdout().flush();
         } else {
-            View::render();
+            View::render(Buffer::default());
             Terminal::move_caret_to(Position {
                 col: self.location.x,
                 row: self.location.y,
