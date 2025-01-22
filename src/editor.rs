@@ -1,9 +1,12 @@
-use std::io::stdout;
+use std::io::Error;
 
 use crossterm::terminal::{Clear, ClearType, enable_raw_mode, disable_raw_mode, size};
 use crossterm::event::{read, KeyEvent, Event, Event::Key, KeyModifiers, KeyCode::Char};
 use crossterm::cursor::MoveTo;
 use crossterm::execute;
+
+mod terminal;
+use terminal::{Terminal, Size, Position};
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -20,41 +23,27 @@ impl Editor {
     }
 
     pub fn run(&mut self) {
-        Self::initialize().unwrap();
+        Terminal::initialize().unwrap();
         let result = self.repl();
-        Self::terminate().unwrap();
+        Terminal::terminate().unwrap();
         result.unwrap();
     }
 
-    fn initialize() -> Result<(), std::io::Error> {
-        enable_raw_mode()?;
-        Self::clear_screen()?;
-        Self::draw_rows()?;
-        Self::draw_welcome_message()
-    }
 
-    fn terminate() -> Result<(), std::io::Error> {
-        disable_raw_mode()
-    }
-
-    fn clear_screen() -> Result<(), std::io::Error> {
-        execute!(stdout(), Clear(ClearType::All))
-    }
-
-    pub fn repl(&mut self) -> Result<(), std::io::Error> {
+     fn repl(&mut self) -> Result<(), Error> {
         loop {
-            let event = read()?;
-            self.evaluate_event(&event);
             self.refresh_screen()?;
-
             if self.should_quit {
                 break;
             }
+            let event = read()?;
+            self.evaluate_event(&event);
         }
         Ok(())
     }
 
     fn evaluate_event(&mut self, event: &Event) {
+
         if let Key(KeyEvent {
             code, modifiers, ..
         }) = event
@@ -69,38 +58,59 @@ impl Editor {
         }
     }
 
-    fn refresh_screen(&self) -> Result<(), std::io::Error> {
+    fn refresh_screen(&self) -> Result<(), Error> {
+        Terminal::hide_cursor()?;
         if self.should_quit {
-            Self::clear_screen()?;
-            print!("Goodbye.\r\n");
+            Terminal::clear_screen()?;
+            Terminal::print("Goodbye.\r\n")?;
+        } else {
+            Self::draw_rows()?;
+            Terminal::move_cursor_to(Position { x: 0, y: 0 })?;
+        }
+        Terminal::show_cursor()?;
+        Terminal::execute()?;
+        Ok(())
+    }
+
+    fn draw_rows() -> Result<(), Error> {
+        let Size { height, .. } = Terminal::size()?;
+        for current_row in 0..height {
+            Terminal::clear_line()?;
+            // we allow this since we don't care if our welcome message is put _exactly_ in the middle.
+            // it's allowed to be a bit up or down
+            #[allow(clippy::integer_division)]
+            if current_row == height / 3 {
+                Self::draw_welcome_message()?;
+            } else {
+                Self::draw_empty_row()?;
+            }
+            if current_row + 1 < height {
+                if current_row.saturating_add(1) < height {
+                    Terminal::print("\r\n")?;
+                }
+            }
         }
         Ok(())
     }
 
-    fn draw_rows() -> Result<(), std::io::Error> {
-        let (height, width) = size()?;
-        execute!(stdout(), MoveTo(0,0));
-        for i in 0..=height {
-            print!("~");
-            execute!(stdout(), MoveTo(0, i));
-        }
-        execute!(stdout(), MoveTo(0,0));
+    fn draw_empty_row() -> Result<(), Error> {
+        Terminal::print("~")?;
         Ok(())
     }
 
-    fn draw_welcome_message() -> Result<(), std::io::Error> {
-        let (width, height) = size()?;
-        let message = format!("{NAME} - {VERSION}");
-        let length: u16 = message.len().try_into().unwrap();
-        let y: u16 = height / 3;
-        let x: u16 = width / 2 - length / 2;
+   fn draw_welcome_message() -> Result<(), Error> {
+        let mut welcome_message = format!("{NAME} editor -- version {VERSION}");
+        let width = Terminal::size()?.width;
+        let len = welcome_message.len();
+        // we allow this since we don't care if our welcome message is put _exactly_ in the middle.
+        // it's allowed to be a bit to the left or right.
+        #[allow(clippy::integer_division)]
+        let padding = (width.saturating_sub(len)) / 2;
 
-        execute!(stdout(), MoveTo(x, y))?;
-        for (i, c) in message.chars().enumerate() {
-            execute!(stdout(), MoveTo(x + i as u16, y))?;
-            print!("{c}");
-        }
-        execute!(stdout(), MoveTo(0,0))?;
+        let spaces = " ".repeat(padding.saturating_sub(1));
+        welcome_message = format!("~{spaces}{welcome_message}");
+        welcome_message.truncate(width);
+        Terminal::print(welcome_message)?;
         Ok(())
     }
 }
