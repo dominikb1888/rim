@@ -89,15 +89,18 @@ impl Editor {
     }
 
     fn draw_welcome_message() -> Result<(), std::io::Error> {
-        let (height, width) = size()?;
+        let (width, height) = size()?;
         let message = format!("{NAME} - {VERSION}");
-        let y = height as usize / 3;
-        let x = (width as usize / 2) - message.len() / 2;
-        execute!(stdout(), MoveTo(x.try_into().unwrap(), y.try_into().unwrap()))?;
+        let length: u16 = message.len().try_into().unwrap();
+        let y: u16 = height / 3;
+        let x: u16 = width / 2 - length / 2;
+
+        execute!(stdout(), MoveTo(x, y))?;
         for (i, c) in message.chars().enumerate() {
+            execute!(stdout(), MoveTo(x + i as u16, y))?;
             print!("{c}");
-            execute!(stdout(), MoveTo((x + i).try_into().unwrap(),y.try_into().unwrap()))?;
         }
+        execute!(stdout(), MoveTo(0,0))?;
         Ok(())
     }
 }
