@@ -1,9 +1,6 @@
 use std::io::Error;
 
-use crossterm::terminal::{Clear, ClearType, enable_raw_mode, disable_raw_mode, size};
 use crossterm::event::{read, KeyEvent, Event, Event::Key, KeyModifiers, KeyCode::Char};
-use crossterm::cursor::MoveTo;
-use crossterm::execute;
 
 mod terminal;
 use terminal::{Terminal, Size, Position};

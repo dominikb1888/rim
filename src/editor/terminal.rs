@@ -16,10 +16,7 @@ pub struct Position {
     pub y: usize
 }
 
-pub struct Terminal {
-    pub size: Size,
-    pub position: Position
-}
+pub struct Terminal {}
 
 impl Terminal {
 
