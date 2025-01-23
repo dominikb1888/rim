@@ -1,58 +1,16 @@
 use std::io::stdout;
 
-use crossterm::terminal::{Clear, ClearType, enable_raw_mode, disable_raw_mode, size};
+// using these imports
 use crossterm::event::{read, KeyEvent, Event, Event::Key, KeyModifiers, KeyCode::Char};
-use crossterm::style::{Print, SetForegroundColor, SetBackgroundColor, ResetColor, Color, Attribute};
+use crossterm::style::{Print, SetForegroundColor, SetBackgroundColor, ResetColor};
 use crossterm::cursor::MoveTo;
 use crossterm::execute;
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-pub struct Size {
-    width: usize,
-    height: usize
-}
-
-pub struct Position {
-    x: usize,
-    y: usize
-}
-
-pub struct Terminal {
-    size: Size
-}
-
-impl Terminal {
-    pub fn default() -> Self {
-        Self { size: Self::size().unwrap() }
-    }
-
-    pub fn size() -> Result<Size, std::io::Error> {
-        let (cols, rows) = crossterm::terminal::size()?;
-        Ok(Size { width: cols as usize, height: rows as usize })
-    }
-}
-
-/// Define an enum for themes
-enum Theme {
-    Maroon,
-    Skylight,
-    Electro,
-    Custom(Color, Color)
-}
-
-impl Theme {
-    /// Get the static foreground and background colors for each theme
-    fn colors(&self) -> (Color, Color) {
-        match self {
-            Theme::Maroon => (Color::Red, Color::Grey),
-            Theme::Skylight => (Color::Blue, Color::White),
-            Theme::Electro => (Color::Yellow, Color::Black),
-            Theme::Custom(fg, bg) => (*fg, *bg),
-        }
-    }
-}
+use crate::theme::Theme;
+use crate::terminal::{Terminal, Size};
 
 pub struct Editor {
     should_quit: bool,
@@ -66,28 +24,18 @@ impl Editor {
     }
 
     pub fn run(&mut self) {
-        self.initialize().unwrap();
+        Terminal::initialize().unwrap();
         let result = self.repl();
-        self.terminate().unwrap();
+        Terminal::terminate().unwrap();
         result.unwrap();
     }
 
-    fn initialize(&self) -> Result<(), std::io::Error> {
-        enable_raw_mode()?;
-        Self::clear_screen()?;
-        self.draw_rows()?;
-        self.draw_welcome_message()
-    }
 
-    fn terminate(&self) -> Result<(), std::io::Error> {
-        disable_raw_mode()
-    }
-
-    fn clear_screen() -> Result<(), std::io::Error> {
-        execute!(stdout(), Clear(ClearType::All))
-    }
 
     pub fn repl(&mut self) -> Result<(), std::io::Error> {
+        self.draw_rows()?;
+        self.draw_welcome_message()?;
+
         loop {
             let event = read()?;
             self.evaluate_event(&event);
@@ -117,7 +65,7 @@ impl Editor {
 
     fn refresh_screen(&self) -> Result<(), std::io::Error> {
         if self.should_quit {
-            Self::clear_screen()?;
+            Terminal::clear_screen()?;
             print!("Goodbye.\r\n");
         }
         Ok(())
@@ -135,10 +83,10 @@ impl Editor {
     }
 
     fn draw_rows(&self) -> Result<(), std::io::Error> {
-        let Size { width: width, height: height } = self.terminal.size;
-        Self::move_cursor_to(0,0);
+        let Size { width: _, height } = self.terminal.size;
+        Self::move_cursor_to(0,0)?;
         for i in 0..=height {
-            Self::print("~".to_string(), Theme::Maroon);
+            Self::print("~".to_string(), Theme::Maroon)?;
             Self::move_cursor_to(0, i as usize)?;
         }
         Self::move_cursor_to(0,0)?;
@@ -146,7 +94,7 @@ impl Editor {
     }
 
     fn draw_welcome_message(&self) -> Result<(), std::io::Error> {
-        let Size { width: width, height: height } = self.terminal.size;
+        let Size { width, height } = self.terminal.size;
         let message = format!("{NAME} - {VERSION}"); // rim - version 0.1
         let y = height as usize / 3;
         let x = (width as usize / 2) - message.len() / 2;

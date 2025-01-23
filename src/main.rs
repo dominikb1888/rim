@@ -1,5 +1,4 @@
-mod editor;
-use editor::Editor;
+use rim::editor::Editor;
 
 fn main() {
    // Please start my editor here
