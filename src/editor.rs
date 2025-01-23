@@ -2,38 +2,84 @@ use std::io::stdout;
 
 use crossterm::terminal::{Clear, ClearType, enable_raw_mode, disable_raw_mode, size};
 use crossterm::event::{read, KeyEvent, Event, Event::Key, KeyModifiers, KeyCode::Char};
+use crossterm::style::{Print, SetForegroundColor, SetBackgroundColor, ResetColor, Color, Attribute};
 use crossterm::cursor::MoveTo;
 use crossterm::execute;
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-pub struct Editor {
-    should_quit: bool,
+pub struct Size {
+    width: usize,
+    height: usize
 }
 
+pub struct Position {
+    x: usize,
+    y: usize
+}
+
+pub struct Terminal {
+    size: Size
+}
+
+impl Terminal {
+    pub fn default() -> Self {
+        Self { size: Self::size().unwrap() }
+    }
+
+    pub fn size() -> Result<Size, std::io::Error> {
+        let (cols, rows) = crossterm::terminal::size()?;
+        Ok(Size { width: cols as usize, height: rows as usize })
+    }
+}
+
+/// Define an enum for themes
+enum Theme {
+    Maroon,
+    Skylight,
+    Electro,
+    Custom(Color, Color)
+}
+
+impl Theme {
+    /// Get the static foreground and background colors for each theme
+    fn colors(&self) -> (Color, Color) {
+        match self {
+            Theme::Maroon => (Color::Red, Color::Grey),
+            Theme::Skylight => (Color::Blue, Color::White),
+            Theme::Electro => (Color::Yellow, Color::Black),
+            Theme::Custom(fg, bg) => (*fg, *bg),
+        }
+    }
+}
+
+pub struct Editor {
+    should_quit: bool,
+    terminal: Terminal,
+}
 
 impl Editor {
 
     pub fn default() -> Self {
-        Self { should_quit: false }
+        Self { should_quit: false, terminal: Terminal::default() }
     }
 
     pub fn run(&mut self) {
-        Self::initialize().unwrap();
+        self.initialize().unwrap();
         let result = self.repl();
-        Self::terminate().unwrap();
+        self.terminate().unwrap();
         result.unwrap();
     }
 
-    fn initialize() -> Result<(), std::io::Error> {
+    fn initialize(&self) -> Result<(), std::io::Error> {
         enable_raw_mode()?;
         Self::clear_screen()?;
-        Self::draw_rows()?;
-        Self::draw_welcome_message()
+        self.draw_rows()?;
+        self.draw_welcome_message()
     }
 
-    fn terminate() -> Result<(), std::io::Error> {
+    fn terminate(&self) -> Result<(), std::io::Error> {
         disable_raw_mode()
     }
 
@@ -77,27 +123,40 @@ impl Editor {
         Ok(())
     }
 
-    fn draw_rows() -> Result<(), std::io::Error> {
-        let (height, width) = size()?;
-        execute!(stdout(), MoveTo(0,0));
-        for i in 0..=height {
-            print!("~");
-            execute!(stdout(), MoveTo(0, i));
-        }
-        execute!(stdout(), MoveTo(0,0));
+    fn print(message: String, theme: Theme) -> Result<(), std::io::Error> {
+        let (fg, bg) = theme.colors();
+        execute!(stdout(), SetForegroundColor(fg), SetBackgroundColor(bg), Print(message), ResetColor)?;
         Ok(())
     }
 
-    fn draw_welcome_message() -> Result<(), std::io::Error> {
-        let (height, width) = size()?;
-        let message = format!("{NAME} - {VERSION}");
-        let y = height as usize / 3;
-        let x = (width as usize / 2) - message.len() / 2;
-        execute!(stdout(), MoveTo(x.try_into().unwrap(), y.try_into().unwrap()))?;
-        for (i, c) in message.chars().enumerate() {
-            print!("{c}");
-            execute!(stdout(), MoveTo((x + i).try_into().unwrap(),y.try_into().unwrap()))?;
-        }
+    fn move_cursor_to(x: usize, y: usize) -> Result<(), std::io::Error> {
+        execute!(stdout(), MoveTo(x as u16, y as u16))?;
         Ok(())
     }
+
+    fn draw_rows(&self) -> Result<(), std::io::Error> {
+        let Size { width: width, height: height } = self.terminal.size;
+        Self::move_cursor_to(0,0);
+        for i in 0..=height {
+            Self::print("~".to_string(), Theme::Maroon);
+            Self::move_cursor_to(0, i as usize)?;
+        }
+        Self::move_cursor_to(0,0)?;
+        Ok(())
+    }
+
+    fn draw_welcome_message(&self) -> Result<(), std::io::Error> {
+        let Size { width: width, height: height } = self.terminal.size;
+        let message = format!("{NAME} - {VERSION}"); // rim - version 0.1
+        let y = height as usize / 3;
+        let x = (width as usize / 2) - message.len() / 2;
+        Self::move_cursor_to(x.try_into().unwrap(), y.try_into().unwrap())?;
+        Self::print(message, Theme::Maroon)?;
+        Self::move_cursor_to(0, 0)?;
+        Ok(())
+    }
+
+
+
+
 }
